@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GestureControl Web - Offline/Online CV</title>
+    <title>GestureControl Web - Ultimate Edition</title>
     <!-- استدعاء مكتبات ميديا بايد من الـ CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -72,7 +72,7 @@
             border-left: 4px solid var(--neon-green);
         }
         .status {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: var(--neon-pink);
             min-height: 40px;
@@ -114,11 +114,12 @@
             </div>
             
             <div class="card">
-                <h3>Controls Guide</h3>
-                <p>👍 <b>Thumbs Up:</b> Volume Up / Right</p>
-                <p>👎 <b>Thumbs Down:</b> Volume Down / Left</p>
-                <p>🖕 <b>Middle Down:</b> Scroll Down</p>
+                <h3>Gestures Guide</h3>
+                <p>🤌 <b>Pinch (Thumb + Index):</b> Play / Pause (Space)</p>
+                <p>👍 <b>Thumbs Up:</b> Volume Up / Forward</p>
+                <p>👎 <b>Thumbs Down:</b> Volume Down / Back</p>
                 <p>☝️ <b>Middle Up:</b> Scroll Up</p>
+                <p>🖕 <b>Middle Down:</b> Scroll Down</p>
             </div>
 
             <button id="startBtn">Start Camera</button>
@@ -133,7 +134,7 @@
         const startBtn = document.getElementById('startBtn');
 
         let lastActionTime = 0;
-        const cooldown = 1000; // مليمتر (ثانية واحدة)
+        const cooldown = 1200; // كولداون 1.2 ثانية عشان الإيماءات ما تتداخلش
 
         function triggerAction(actionName, message) {
             const now = Date.now();
@@ -142,22 +143,27 @@
 
             gestureStatus.innerText = message;
 
-            // محاكاة الأحداث للتحكم في الصفحة أو اليوتيوب/تيك توك المفتوح في التاب
-            if (actionName === "SCROLL_DOWN") {
-                window.scrollBy({ top: 300, behavior: 'smooth' });
-                simulateKey("PageDown");
+            // تنفيذ الأوامر الحقيقية في المتصفح
+            if (actionName === "SPACE") {
+                // محاكاة زر المساحة (Spacebar) لتشغيل وإيقاف الفيديوهات في يوتيوب وتيك توك
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, bubbles: true }));
+                window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, bubbles: true }));
+                
+                // التحكم المباشر لو فيه عنصر فيديو في الصفحة
+                const videos = document.querySelectorAll('video');
+                videos.forEach(v => {
+                    if (v.paused) v.play();
+                    else v.pause();
+                });
+            } else if (actionName === "SCROLL_DOWN") {
+                window.scrollBy({ top: 350, behavior: 'smooth' });
             } else if (actionName === "SCROLL_UP") {
-                window.scrollBy({ top: -300, behavior: 'smooth' });
-                simulateKey("PageUp");
+                window.scrollBy({ top: -350, behavior: 'smooth' });
             } else if (actionName === "VOL_UP") {
-                simulateKey("ArrowRight"); // غالباً في يوتيوب بيعلي الصوت أو يقدم الفيديوهات
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
             } else if (actionName === "VOL_DOWN") {
-                simulateKey("ArrowLeft");
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37, bubbles: true }));
             }
-        }
-
-        function simulateKey(keyName) {
-            window.dispatchEvent(new KeyboardEvent('keydown', { key: keyName }));
         }
 
         function classifyGesture(landmarks) {
@@ -171,6 +177,17 @@
             const ringMcp = landmarks[13];
             const pinkyTip = landmarks[20];
             const pinkyMcp = landmarks[17];
+
+            // حساب المسافة بين طرف الإبهام وطرف السبابة لحركة الـ Pinch
+            const distanceThumbIndex = Math.hypot(
+                thumbTip.x - indexTip.x,
+                thumbTip.y - indexTip.y
+            );
+
+            // لو المسافة صغرت جداً يبقى ده Pinch (ضمة الإبهام والسبابة)
+            if (distanceThumbIndex < 0.05) {
+                return { code: "SPACE", msg: "Pinch – Play / Pause (Space)" };
+            }
 
             const isThumbUp = (thumbTip.y < thumbIp.y) && 
                               (indexTip.y > indexMcp.y) && 
@@ -217,7 +234,6 @@
                     }
                 }
             } else {
-                // لو مفيش إيد ظاهرة
                 if (Date.now() - lastActionTime > 2000) {
                     gestureStatus.innerText = "Waiting for gesture...";
                 }
@@ -248,7 +264,7 @@
             });
             camera.start();
             startBtn.style.display = 'none';
-            gestureStatus.innerText = "Camera Active. Show your hand!";
+            gestureStatus.innerText = "Camera Active. Ready for gestures!";
         });
     </script>
 </body>
