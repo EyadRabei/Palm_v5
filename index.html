@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestureControl Web - Offline/Online CV</title>
+    <!-- استدعاء مكتبات ميديا بايد من الـ CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg-color: #0d0f18;
+            --panel-bg: #161b2e;
+            --neon-green: #00ffcc;
+            --neon-pink: #ff007f;
+            --text-color: #f0f0f5;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        h1 {
+            margin: 10px 0;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border: 1px solid rgba(0, 255, 204, 0.2);
+        }
+        .video-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid var(--neon-pink);
+        }
+        video, canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1); /* مراية */
+        }
+        .sidebar {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--neon-green);
+        }
+        .status {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--neon-pink);
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+        }
+        button {
+            background: var(--neon-green);
+            color: #000;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+        }
+        button:hover {
+            background: #00cca3;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>GestureControl Web</h1>
+    
+    <div class="container">
+        <div class="video-container">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="output_canvas" width="640" height="480"></canvas>
+        </div>
+        
+        <div class="sidebar">
+            <div class="card">
+                <h3>Live Status</h3>
+                <div id="gestureStatus" class="status">Waiting for camera...</div>
+            </div>
+            
+            <div class="card">
+                <h3>Controls Guide</h3>
+                <p>👍 <b>Thumbs Up:</b> Volume Up / Right</p>
+                <p>👎 <b>Thumbs Down:</b> Volume Down / Left</p>
+                <p>🖕 <b>Middle Down:</b> Scroll Down</p>
+                <p>☝️ <b>Middle Up:</b> Scroll Up</p>
+            </div>
+
+            <button id="startBtn">Start Camera</button>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const gestureStatus = document.getElementById('gestureStatus');
+        const startBtn = document.getElementById('startBtn');
+
+        let lastActionTime = 0;
+        const cooldown = 1000; // مليمتر (ثانية واحدة)
+
+        function triggerAction(actionName, message) {
+            const now = Date.now();
+            if (now - lastActionTime < cooldown) return;
+            lastActionTime = now;
+
+            gestureStatus.innerText = message;
+
+            // محاكاة الأحداث للتحكم في الصفحة أو اليوتيوب/تيك توك المفتوح في التاب
+            if (actionName === "SCROLL_DOWN") {
+                window.scrollBy({ top: 300, behavior: 'smooth' });
+                simulateKey("PageDown");
+            } else if (actionName === "SCROLL_UP") {
+                window.scrollBy({ top: -300, behavior: 'smooth' });
+                simulateKey("PageUp");
+            } else if (actionName === "VOL_UP") {
+                simulateKey("ArrowRight"); // غالباً في يوتيوب بيعلي الصوت أو يقدم الفيديوهات
+            } else if (actionName === "VOL_DOWN") {
+                simulateKey("ArrowLeft");
+            }
+        }
+
+        function simulateKey(keyName) {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: keyName }));
+        }
+
+        function classifyGesture(landmarks) {
+            const thumbTip = landmarks[4];
+            const thumbIp = landmarks[3];
+            const indexTip = landmarks[8];
+            const indexMcp = landmarks[5];
+            const middleTip = landmarks[12];
+            const middleMcp = landmarks[9];
+            const ringTip = landmarks[16];
+            const ringMcp = landmarks[13];
+            const pinkyTip = landmarks[20];
+            const pinkyMcp = landmarks[17];
+
+            const isThumbUp = (thumbTip.y < thumbIp.y) && 
+                              (indexTip.y > indexMcp.y) && 
+                              (middleTip.y > middleMcp.y) && 
+                              (ringTip.y > ringMcp.y) && 
+                              (pinkyTip.y > pinkyMcp.y);
+
+            const isThumbDown = (thumbTip.y > thumbIp.y) && 
+                                (indexTip.y > indexMcp.y) && 
+                                (middleTip.y > middleMcp.y) && 
+                                (ringTip.y > ringMcp.y) && 
+                                (pinkyTip.y > pinkyMcp.y);
+
+            const isMiddleOnly = (middleTip.y < middleMcp.y) && 
+                                 (indexTip.y > indexMcp.y) && 
+                                 (ringTip.y > ringMcp.y) && 
+                                 (pinkyTip.y > pinkyMcp.y);
+
+            if (isThumbUp) return { code: "VOL_UP", msg: "Thumbs Up – Volume / Forward +" };
+            if (isThumbDown) return { code: "VOL_DOWN", msg: "Thumbs Down – Volume / Backward -" };
+            if (isMiddleOnly) {
+                if (middleTip.y < landmarks[0].y) {
+                    return { code: "SCROLL_UP", msg: "Middle Finger Up – Scroll Up" };
+                } else {
+                    return { code: "SCROLL_DOWN", msg: "Middle Finger Down – Scroll Down" };
+                }
+            }
+            return null;
+        }
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffcc', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#ff007f', lineWidth: 1, radius: 3});
+
+                    const gesture = classifyGesture(landmarks);
+                    if (gesture) {
+                        triggerAction(gesture.code, gesture.msg);
+                    }
+                }
+            } else {
+                // لو مفيش إيد ظاهرة
+                if (Date.now() - lastActionTime > 2000) {
+                    gestureStatus.innerText = "Waiting for gesture...";
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        startBtn.addEventListener('click', () => {
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start();
+            startBtn.style.display = 'none';
+            gestureStatus.innerText = "Camera Active. Show your hand!";
+        });
+    </script>
+</body>
+</html>
